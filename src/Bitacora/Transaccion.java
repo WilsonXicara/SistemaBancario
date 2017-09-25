@@ -16,7 +16,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Primera prueba
+ * Clase que implementa el manejo de un archivo como bitácora para las Transacciones. El manejo de la información se inicia
+ * y finaliza respectivamente con la Transacción.
  * @author Wilson Xicará
  */
 public class Transaccion {
@@ -24,15 +25,13 @@ public class Transaccion {
     private final String SEPARADOR, CARPETA_PRINCIPAL, rutaBitacora;
     private RandomAccessFile bitacora;
     /** Una constante para indicar que la transacción se finaliza con éxito, CONFIRMANDO los cambios realizados. */
-    public static final int COMPROMETIDA = 0;
+    public static final int COMPROMETIDA = 4;
     /** Una constante para indicar que la transacción se finaliza con algún ERROR. */
-    public static final int FALLIDA = 3;
+    public static final int FALLIDA = 2;
     /** Una constante para indicar que la transacción se finaliza con éxito, DESCARTANDO los cambios realizados. */
-    public static final int ABORTADA = 4;
-    private static final int ACTIVA = 1;
-    private static final int PARCIALMENTE_COMPROMETIDA = 2;
-    
-    
+    public static final int ABORTADA = 3;
+    private static final int ACTIVA = 0;
+    private static final int PARCIALMENTE_COMPROMETIDA = 1;
     
     private int longitudBloque, cantidadInstrucciones;
     private long punteroLongitudBloque, punteroEstado, punteroCantidadInstrucciones;
@@ -45,88 +44,82 @@ public class Transaccion {
      */
     public Transaccion(Connection conexion) {
         this.conexion = conexion;
-        // Inicio de la lectura del archivo bitácora
         SEPARADOR = System.getProperty("file.separator");
-        CARPETA_PRINCIPAL = System.getProperty("user.home") + SEPARADOR + "BITACORA";
+        CARPETA_PRINCIPAL = System.getProperty("user.home") + SEPARADOR + "SBLOG";
         rutaBitacora = CARPETA_PRINCIPAL + SEPARADOR + "bitacora.log";
         
+        File carpetaBitacora = new File(CARPETA_PRINCIPAL);
         File archivoBitacora = new File(rutaBitacora);
         RandomAccessFile archivo;
-        if (!archivoBitacora.exists()) { // Si el archivo no existe, se crea uno vacío
+        if (!carpetaBitacora.exists() || !archivoBitacora.exists()) { // Si el archivo no existe, se crea uno vacío
+            carpetaBitacora.mkdirs();
             try {
-                archivo = new RandomAccessFile(rutaBitacora, "rw");
-                String cadenaInicial = "SBlog"; // Firma del archivo
-                cadenaInicial+= (char)0 + (char)0 + (char)0;  // Byte reservado más cantidad actual de transacciones guardadas
+                archivo = new RandomAccessFile(archivoBitacora, "rw");
+                String cadenaInicial = "SBlog"; // Firma y tipo del archivo
                 archivo.writeBytes(cadenaInicial);
+                archivo.writeByte(0);
+                archivo.writeByte(0);
+                archivo.writeByte(0xFF);
             } catch (FileNotFoundException ex) {
                 Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
             } catch (IOException ex) {
                 Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
             }
         } else {
-            // En caso de que exista el archivo, verifico si tiene almacenado el historial de una transacción anterior.
-            // Dicha transacción tuvo un estado fallido, por lo que es necesario hacer un ROLLBACK
+            // En caso de que exista el archivo, verifico si tiene almacenado el historial de transacciones anteriores.
+            // Si las transacciones almacenadas no fueron completadas con éxito estarán como ACTIVA, PARCIALMENTE_COMPROMETIDA
+            // o FALLIDA. En cualquier caso, se hará un ROLLBACK sin importar el estado.
             try {
-                archivo = new RandomAccessFile(archivoBitacora, "rw");
-                archivo.skipBytes(6);   // Salto hasta los 2 bytes con la cantidad de transacciones guardadas
-                int contador = Short.toUnsignedInt(archivo.readShort());
-                boolean[] borrarBloques = null;
-                int[] longBloques = null;
-                if (contador > 0) {
-                    borrarBloques = new boolean[contador];
-                    longBloques = new int[contador];
-                }
+                conexion.setAutoCommit(false);  // Inhabilito el AUTO-COMIT para poder hacer el ROLLBACK
+                conexion.rollback();    // Hago un ROLLBACK para finalizar cualquier Transacción no terminada.
+                conexion.setAutoCommit(true);
                 
-                int auxContador;
+                archivo = new RandomAccessFile(archivoBitacora, "rw");
+                archivo.skipBytes(6);   // Salto hasta el byte con la cantidad de transacciones guardadas
+                int cantidad = Byte.toUnsignedInt(archivo.readByte()), auxCantidad, cont, longBloque, contSentecias;
                 long punteroBloqueT;
-                for (int cont=0; cont<contador; cont++) {
-                    punteroBloqueT = archivo.getFilePointer();  // Guardo el inicio del cont-ésimo bloque
-                    longBloques[cont] = Short.toUnsignedInt(archivo.readShort());  // Obtengo la longitud del cont-ésimo bloque (información de la transacción)
-                    archivo.readLine(); // Leo la línea correspondiente a la fecha de la transacción
-                    if (Byte.toUnsignedInt(archivo.readByte()) == FALLIDA) {
-                        try {
-                            conexion.rollback();    // Si la Transacción terminó como fallida, hago un ROLLBACK
-                            borrarBloques[cont] = true; // Indico que se borrará el bloque
-                        } catch (SQLException ex) {
-                            borrarBloques[cont] = false;    // Si ocurre un error, no se borrará el bloque (se tratará de atender en el inicio de la siguiente Transacción)
-                            Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
-                        }
-                    }
-                    archivo.seek(punteroBloqueT);   // Regreso al inicio del cont-ésimo bloque
-                    archivo.skipBytes(longBloques[cont]);  // Salto hasta el siguiente bloque
-                }
-                // Inicio del borrado de todos los bloques atendidos con un ROLLBACK
-                auxContador = contador;
-                archivo.seek(8);    // Me muevo hasta el inicio del primer bloque almacenado
-                for(int cont=0; cont<contador; cont++) {
-                    if (borrarBloques[cont]) {
-                        punteroBloqueT = archivo.getFilePointer();
-                        archivo.skipBytes(longBloques[cont]);   // Salto hasta el inicio del siguiente bloque
-                        byte[] bloque = new byte[(cont==contador-1) ? 1 : (int)(archivo.length()-archivo.getFilePointer())];
-                        if (contador != contador-1) {   // Si se elimina un bloque que no es el último
-                            archivo.read(bloque);
-                            archivo.seek(punteroBloqueT);   // Regreso al inicio del bloque a borrar
-                            archivo.write(bloque);  // Escribo todo lo que sigue
-                            archivo.setLength(archivo.length() - longBloques[cont] - 2);    // Acorto el tamaño del archivo
-                            archivo.seek(punteroBloqueT);   // Regreso al inicio del bloque borrado
-                        } else {    // Si se elimina el último bloque
-                            archivo.seek(punteroBloqueT);
-                            archivo.setLength(archivo.length() - longBloques[cont] - 2);    // Acorto el tamaño del archivo
-                        }
-                        auxContador--;
-                    }
+                String[] estados = {"Activa", "Parcialmente Comprometida", "Fallida", "Abortada", "Comprometida"};
+                // Inicio de la eliminación de los bloques almacenados de las Transacciones anteriores.
+                punteroBloqueT = archivo.getFilePointer();  // Almaceno el puntero al inicio del bloque de información
+                for(cont=0, auxCantidad=cantidad; cont<cantidad; cont++) {
+                    // La eliminación se hace del primer al último bloque, por lo que punteroBloqueT siempre tendrá el mismo valor
+                    longBloque = Short.toUnsignedInt(archivo.readShort());  // Almaceno la longitud del bloque de información
+                    
+                    // Impresión del bloque de información de la Transacción actual
+                    System.out.println("**********  Iniciando la eliminación de la Transacción con fecha '"+archivo.readLine()+"':");
+                    System.out.println("Estado: "+estados[Byte.toUnsignedInt(archivo.readByte())]);
+                    System.out.println("Sentecias SQL ejecutadas:");
+                    contSentecias = Byte.toUnsignedInt(archivo.readByte());   // Obtengo la cantidad de sentencias SQL de la Transacción actual
+                    for(int i=0; i<contSentecias; i++)
+                        System.out.println("  "+(i+1)+" -> "+archivo.readLine());
+                    System.out.println("**  Fin de la Transacción.");
+                    
+                    // Eliminación del bloque de información de la Transacción actual
+//                    archivo.seek(punteroBloqueT + 2 + longBloque);  # Descomentar en caso de no imprimir la información del bloque
+                    byte[] bloqueFinal = new byte[(int)(archivo.length()-1 - archivo.getFilePointer())];
+                    archivo.read(bloqueFinal);  // Leo todo el bloque que va después de la Transacción a eliminar
+                    archivo.seek(punteroBloqueT);   // Regreso al inicio del bloque de información a eliminar
+                    archivo.write(bloqueFinal); // Escribo todo el bloque leido
+                    archivo.setLength(archivo.length() - 2 - longBloque);   // Acortación del tamaño de archivo
+                    auxCantidad--;
+                    archivo.seek(punteroBloqueT);
                 }
                 archivo.seek(6);    // Regreso a donde está la cantidad anterior de Transacciones guardadas
-                archivo.writeShort(auxContador);
+                archivo.writeShort(auxCantidad);
                 archivo.close();
                 // HASTA AQUÍ SE GARANTIZA LA ATENCIÓN Y ELIMINACIÓN DE LAS TRANSACCIONES FALLIDAS
             } catch (FileNotFoundException ex) {
+                System.out.println("Error: Es posible que el archivo no exista. Al evaluar el estado del archivo");
                 Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
             } catch (IOException ex) {
+                System.out.println("Error: Es posible que el archivo tenga mal los punteros haciendo referencia a posiciones no válidas.");
+                Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (SQLException ex) {
+                System.out.println("Error: Es posible que la conexión haya sido cerrada.");
                 Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
             }
-            
-        }   // Hasta aquí se garantiza la existencia del archivo
+        }
+        // Hasta aquí se garantiza la existencia del archivo
     }
     /**
      * Prepara en el archivo el bloque de información que se almacenará para la Transacción actual.
@@ -134,7 +127,7 @@ public class Transaccion {
     public void iniciar() {
         try {
             bitacora = new RandomAccessFile(rutaBitacora, "rw");
-            // Llevo el puntero hasta el final del archivo que es en donde se escribirá el registro de la transacción iniciada
+            // Llevo el puntero hasta el penúltimo byte del archivo (donde se escribirá el registro de la transacción iniciada)
             bitacora.seek(bitacora.length() - 1);
             punteroLongitudBloque = bitacora.getFilePointer();
             bitacora.writeShort(0); // Inicialmente la longitud del bloque es 0
@@ -142,29 +135,33 @@ public class Transaccion {
             ResultSet cConsulta = conexion.createStatement().executeQuery("SELECT NOW()");
             cConsulta.next();
             String aux = cConsulta.getString(1)+'\n';   // Concatenación de la fecha y hora, con un salto de linea al final
-            aux+= (char)ACTIVA;  // Concatenación del indicador de que la transacción está activa
-            bitacora.writeBytes(aux);   // Escritura de la fecha y hora y del estado de la transacción actual
+            bitacora.writeBytes(aux);
+            punteroEstado = bitacora.getFilePointer();
+            bitacora.writeByte(ACTIVA); // Concatenación del indicador de que la transacción está activactual
             punteroCantidadInstrucciones = bitacora.getFilePointer();
-            bitacora.writeShort(0); // Inicialmente hay 0 instrucciones SQL ejecutadas
+            bitacora.writeByte(0); // Inicialmente hay 0 instrucciones SQL ejecutadas
             cantidadInstrucciones = 0;
             longitudBloque = aux.length() + 2;  // Longitudes de fecha y hora, estado y cantidad de instrucciones
-            // Escritura de la longitud del bloque de información de la transacción actual
-            bitacora.seek(punteroLongitudBloque);
+            bitacora.writeBytes(""+(char)0xFF); // Escritura del indicador de Fin de archivo
+            bitacora.seek(punteroLongitudBloque);   // Escritura de la longitud actual del bloque de información de la transacción actual
             bitacora.writeShort(longitudBloque);
             // Actualización de la cantidad de Transacciones almacenadas en el archivo
             bitacora.seek(6);
-            int cantidad = Short.toUnsignedInt(bitacora.readShort()) + 1;
+            int cantidad = Byte.toUnsignedInt(bitacora.readByte());
             bitacora.seek(6);
-            bitacora.writeShort(cantidad);
-            // Dejo el puntero al final del archivo
+            bitacora.writeByte(++cantidad);
+            // Dejo el puntero al final del bloque de información de la transacción actual
             bitacora.seek(bitacora.length() - 1);
             // Indicador de que la transacción ha sido iniciada
             iniciada = true;
         } catch (FileNotFoundException ex) {
+            System.out.println("Error: Es posible que el archivo no exista. Al iniciar la transacción");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
+            System.out.println("Error: Es posible que el archivo tenga mal los punteros haciendo referencia a posiciones no válidas. Al iniciar la transacción");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SQLException ex) {
+            System.out.println("Error: Al intentar obtener la Fecha-Hora que identificará a la transacción actual");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -176,19 +173,21 @@ public class Transaccion {
     public void almacenarSentenciaSQL(String sentenciaSQL) {
         // Aquí sólo se guarda la instrucción SQL y se actualiza el contador de cantidad de instrucciones en el archivo
         try {
-            bitacora.writeBytes(sentenciaSQL + '\n');
+            bitacora.writeBytes(sentenciaSQL + '\n' + (char)0xFF);  // También se escribe el indicador de Fin de archivo
             longitudBloque+= sentenciaSQL.length() + 1;
             // Actualización de la longitud del bloque
             bitacora.seek(punteroLongitudBloque);
             bitacora.writeShort(longitudBloque);
             // Actualización de la cantidad de instrucciones
             bitacora.seek(punteroCantidadInstrucciones);
-            bitacora.writeShort(++cantidadInstrucciones);
-            // Dejo el puntero al final del archivo
+            bitacora.writeByte(++cantidadInstrucciones);
+            // Dejo el puntero en el penúltimo byte del archivo
             bitacora.seek(bitacora.length() - 1);
         } catch (FileNotFoundException ex) {
+            System.out.println("Error: Es posible que el archivo no exista. Al almacenar una sentencia SQL");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
+            System.out.println("Error: Es posible que el archivo tenga mal los punteros haciendo referencia a posiciones no válidas. Al almacenar una sentencia SQL");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -201,28 +200,27 @@ public class Transaccion {
     public void finalizar(int estadoFinal) {
         // Aquí se actualiza el estado de la transacción y se elimina el bloque (si no es FALLIDA)
         try {
-            // Primero indico que está parcialmente comprometida
-            bitacora.seek(punteroEstado);
+            bitacora.seek(punteroEstado);   // Primero indico que está parcialmente comprometida
             bitacora.writeByte(PARCIALMENTE_COMPROMETIDA);
             
-            // Verificación del estado final que tuvo la Transacción
-            switch (estadoFinal) {
+            switch (estadoFinal) {  // Verificación del estado final que tuvo la Transacción
                 case FALLIDA:
                     bitacora.seek(punteroEstado);
                     bitacora.writeByte(FALLIDA);
                     break;
                 case COMPROMETIDA:
                 case ABORTADA:
-                    // Se finalizó con éxito
-                    // No es necesario guardar el estado pues al final se eliminará el bloque
+                    // Se finalizó con éxito. No es necesario guardar el estado pues al final se eliminará el bloque
                     
                     // Inicio de la eliminación del bloque de información de la Transacción finalizada
                     // Se asume que el bloque actual siempre será el último ya que no se puede editar una transacción anterior
-                    bitacora.setLength(bitacora.length() - longitudBloque - 2);
+                    bitacora.setLength(bitacora.length() - longitudBloque - 2 - 1); // Se toma en cuenta el indicador de Fin de archivo
+                    bitacora.seek(bitacora.length());
+                    bitacora.writeBytes(""+(char)0xFF); // Escritura del indicador de Fin de archivo
                     bitacora.seek(6);
-                    int cantidadT = Short.toUnsignedInt(bitacora.readShort());
+                    int cantidadT = Byte.toUnsignedInt(bitacora.readByte());
                     bitacora.seek(6);
-                    bitacora.writeShort(--cantidadT);
+                    bitacora.writeByte(--cantidadT);
                     break;
                 default:
                     // Si se pasa un parámetro desconocido, se asume que se confirma la transacción
@@ -230,14 +228,13 @@ public class Transaccion {
                     bitacora.writeByte(COMPROMETIDA);
                     break;
             }
-            // Cierre del archivo
-            bitacora.close();
-            
-            // Indicador de que la transacción ha sido finalizada
-            iniciada = false;
+            bitacora.close();   // Cierre del archivo
+            iniciada = false;   // Indicador de que la transacción ha sido finalizada
         } catch (FileNotFoundException ex) {
+            System.out.println("Error: Es posible que el archivo no exista. Al finalizar la Transacción");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
+            System.out.println("Error: Es posible que el archivo tenga mal los punteros haciendo referencia a posiciones no válidas. Al finalizar la Transacción");
             Logger.getLogger(Transaccion.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
