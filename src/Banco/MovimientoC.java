@@ -43,10 +43,11 @@ public class MovimientoC extends javax.swing.JFrame {
         }
     }
     public void ChequeE(){
-        String Instruccion = "",Instruccion2 = "";
+        String Instruccion = "",Instruccion2 = "",Instruccion3 = "";
         String monto = Monto.getText();
+        String NoC = NoCheque.getText();
         PreparedStatement pst = null;
-        if(monto.equals("")){
+        if((monto.equals(""))&&(NoC.equals(""))){
             JOptionPane.showMessageDialog(null, "Campo Vacio");
         }
         else if (Float.parseFloat(monto)>SaldoC){
@@ -69,7 +70,17 @@ public class MovimientoC extends javax.swing.JFrame {
                 Instruccion2 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo - " + monto + " WHERE cuenta.Id = " + cuenta.getString(1) + ";";
                 pst = conexion.prepareStatement(Instruccion2);
                 a = pst.executeUpdate();
-
+                
+                //Insert Cheque de la cual se sacó dinero 
+                Statement sentencia = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                ResultSet idMov = sentencia.executeQuery("SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";" );
+                idMov.last();   //Nos movemos al ultimo
+                idMov.previous();   //Retrocedemos
+                Instruccion3 = "INSERT INTO cheque (cheque.Movimiento_Id,cheque.Numero,cheque.Fecha) VALUES (" +
+                                idMov.getString(1) + ",'" + NoC + "',NOW());" ;
+                pst = conexion.prepareStatement(Instruccion3);
+                a = pst.executeUpdate();
+                
                 //Hacemos commit
                 pst = conexion.prepareStatement("COMMIT");
                 a = pst.executeUpdate();
@@ -93,7 +104,7 @@ public class MovimientoC extends javax.swing.JFrame {
         }
     }
     public void ChequeD(){
-        String Instruccion = "",Instruccion1 = "",Instruccion2 = "", Instruccion3 = "";
+        String Instruccion = "",Instruccion1 = "",Instruccion2 = "", Instruccion3 = "",Instruccion4 = "";
         String NoC = NoCheque.getText();
         String monto = Monto.getText();
         String Cuenta2 = NoCuentaC.getText();
@@ -137,7 +148,14 @@ public class MovimientoC extends javax.swing.JFrame {
                 a = pst.executeUpdate();
                 
                 //Insert al del cheque Pendiente
-                
+                Statement sentencia2 = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+                ResultSet idMov = sentencia2.executeQuery("SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";" );
+                idMov.last();   //Nos movemos al ultimo
+                idMov.previous();   //Retrocedemos
+                Instruccion4 = "INSERT INTO cheque (cheque.Movimiento_Id,cheque.Numero,cheque.Fecha) VALUES (" +
+                                idMov.getString(1) + ",'" + NoC + "',NOW());" ;
+                pst = conexion.prepareStatement(Instruccion4);
+                a = pst.executeUpdate();
                 
                 
                 //Hacemos commit
