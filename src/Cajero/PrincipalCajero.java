@@ -29,7 +29,7 @@ public class PrincipalCajero extends javax.swing.JFrame {
             initComponents();
             this.setLocationRelativeTo(null);
             Class.forName("org.gjt.mm.mysql.Driver");
-            conexion = DriverManager.getConnection("jdbc:mysql://localhost/sistemabancario" , "root", "hugo");
+            conexion = DriverManager.getConnection("jdbc:mysql://localhost/sistemabancario" , "otro", "otro");
             IniciarSesion();
         } catch (SQLException ex) {
             Logger.getLogger(PrincipalCajero.class.getName()).log(Level.SEVERE, null, ex);
