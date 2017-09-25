@@ -258,12 +258,10 @@
                   <EmptySpace type="separate" max="-2" attributes="0"/>
                   <Group type="103" groupAlignment="0" max="-2" attributes="0">
                       <Component id="jButton4" pref="200" max="32767" attributes="0"/>
-                      <Group type="103" groupAlignment="0" max="-2" attributes="0">
-                          <Component id="jButton3" pref="200" max="32767" attributes="0"/>
-                          <Component id="NoCuentaE" max="32767" attributes="0"/>
-                          <Component id="MontoE" max="32767" attributes="0"/>
-                          <Component id="TipoE" max="32767" attributes="0"/>
-                      </Group>
+                      <Component id="jButton3" pref="200" max="32767" attributes="0"/>
+                      <Component id="NoCuentaE" max="32767" attributes="0"/>
+                      <Component id="MontoE" max="32767" attributes="0"/>
+                      <Component id="TipoE" max="32767" attributes="0"/>
                   </Group>
                   <EmptySpace max="32767" attributes="0"/>
               </Group>
@@ -351,7 +349,7 @@
       <Properties>
         <Property name="model" type="javax.swing.ComboBoxModel" editor="org.netbeans.modules.form.editors2.ComboBoxModelEditor">
           <StringArray count="2">
-            <StringItem index="0" value="Movimiento en Efectio"/>
+            <StringItem index="0" value="Movimiento en Efectivo"/>
             <StringItem index="1" value="Movimiento con Cheque"/>
           </StringArray>
         </Property>

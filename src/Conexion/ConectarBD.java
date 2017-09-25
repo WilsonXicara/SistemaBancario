@@ -23,7 +23,7 @@ public class ConectarBD {
             Class.forName("org.gjt.mm.mysql.Driver");
             //Class.forName("com.mysql.jbdc.Driver");
             //conexion = DriverManager.getConnection("jdbc:mysql:" + Url + "/" + Nom ,User,contra);
-            conexion = DriverManager.getConnection("jdbc:mysql://localhost/sistemabancario","root","sergio2710");
+            conexion = DriverManager.getConnection("jdbc:mysql://localhost/sistemabancario","otro","otro");
             //System.out.println("Conexcion Exitosa");
             //mostrar(conexion);
         }

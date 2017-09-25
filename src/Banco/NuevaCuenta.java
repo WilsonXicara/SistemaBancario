@@ -5,6 +5,7 @@
  */
 package Banco;
 
+import Bitacora.Transaccion;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,6 +32,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
     String numeroC = "";
     String numeroT = "";
     JFrame Padre;
+    Transaccion bitacora;
     public NuevaCuenta() {
         initComponents();
     }
@@ -41,6 +43,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
         modelo = (DefaultTableModel) Clientes.getModel();
         calcularNoCuenta();
         Padre = pad;
+        bitacora = new Transaccion(conexion);
     }
     public void calcularNoCuenta(){
         int num;
@@ -487,11 +490,13 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 //Iniciamos la transsacion
                 pst = conexion.prepareStatement("START TRANSACTION");
                 int a = pst.executeUpdate();
+                bitacora.iniciar();
                 if (a>0){
                     System.out.println("Se logró iniciar la transaccion");
                 }
                 
                 //Primero se va crear la cuenta;
+                bitacora.almacenarSentenciaSQL(Instruccion);
                 pst = conexion.prepareStatement(Instruccion);
                 a = pst.executeUpdate();
                 if (a>0){
@@ -505,6 +510,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 else{
                     Instruccion1 = TablaTarjeta(0);
                 }
+                bitacora.almacenarSentenciaSQL(Instruccion1);
                 pst = conexion.prepareStatement(Instruccion1);
                 a = pst.executeUpdate();
                 if (a>0){
@@ -515,6 +521,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 for(int cont = 0; cont < modelo.getRowCount();cont++){
                     Instruccion2 = "INSERT INTO cliente (cliente.NombreCompleto,cliente.DPI,cliente.Direccion,cliente.Telefono) VALUES ('"
                     + modelo.getValueAt(cont, 1) + "','" + modelo.getValueAt(cont, 2) + "','" + modelo.getValueAt(cont, 3) + "','" + modelo.getValueAt(cont, 4) + "');";
+                    bitacora.almacenarSentenciaSQL(Instruccion2);
                     pst = conexion.prepareStatement(Instruccion2);
                     a = pst.executeUpdate();
                     if (a>0){
@@ -525,7 +532,9 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 //Luego los cuentacliente
                 String ac = "", bc = "";
                 Statement sentencia2 = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                ResultSet cuent = sentencia2.executeQuery("SELECT cuenta.Id FROM cuenta WHERE cuenta.Numero = '" + NumeroC + "';" );
+                String sentenciaSQL = "SELECT cuenta.Id FROM cuenta WHERE cuenta.Numero = '" + NumeroC + "';";
+                bitacora.almacenarSentenciaSQL(sentenciaSQL);
+                ResultSet cuent = sentencia2.executeQuery(sentenciaSQL);
                 ResultSet client = null;
                 if(cuent.next()){
                     System.out.println("Si hay un next en cuenta");
@@ -535,7 +544,9 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 //cuent.next();
                 for(int cont = 0; cont < modelo.getRowCount();cont++){
                     client = null;
-                    client = sentencia2.executeQuery("SELECT cliente.Id FROM cliente WHERE cliente.DPI = '" + modelo.getValueAt(cont, 2) + "';" );
+                    sentenciaSQL = "SELECT cliente.Id FROM cliente WHERE cliente.DPI = '" + modelo.getValueAt(cont, 2) + "';";
+                    bitacora.almacenarSentenciaSQL(sentenciaSQL);
+                    client = sentencia2.executeQuery(sentenciaSQL);
                     if(client.next()){
                         System.out.println("Si hay un next en cliente");
                         System.out.println("ID " + client.getString(1));
@@ -543,6 +554,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
                     }
                     Instruccion3 = "INSERT INTO cuentacliente (cuentacliente.Cuenta_Id,cuentacliente.Cliente_Id) VALUES("
                     + ac + "," + bc + ");";
+                    bitacora.almacenarSentenciaSQL(Instruccion3);
                     pst = conexion.prepareStatement(Instruccion3);
                     a = pst.executeUpdate();
                     if (a>0){
@@ -555,6 +567,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 //Hacemos Commit
                 pst = conexion.prepareStatement("COMMIT");
                 a = pst.executeUpdate();
+                bitacora.finalizar(Transaccion.COMPROMETIDA);
                 System.out.println("Se logró el commit");
                 if(Activar.isSelected()){
                     JOptionPane.showMessageDialog(null, "Se ha creado la cuenta " + NoCuenta.getText() + "\n" +
@@ -572,10 +585,12 @@ public class NuevaCuenta extends javax.swing.JFrame {
                     //Hacemos Rollback
                     pst = conexion.prepareStatement("ROLLBACK;");
                     int b = pst.executeUpdate();
+                    bitacora.finalizar(Transaccion.ABORTADA);
                     System.out.println("Se logró el Rollback");
                     JOptionPane.showMessageDialog(null, "Error Inesperado");
                     //conexion.rollback();
                 } catch (SQLException ex1) {
+                    bitacora.finalizar(Transaccion.FALLIDA);
                     //Insertar algo en el archivo
                     System.out.println("No se pudo realizar el Rollback");
                     Logger.getLogger(NuevaCuenta.class.getName()).log(Level.SEVERE, null, ex1);

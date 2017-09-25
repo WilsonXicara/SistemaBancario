@@ -5,6 +5,8 @@
  */
 package Banco;
 
+import Bitacora.Transaccion;
+import com.lowagie.text.pdf.codec.PngImage;
 import java.awt.Dimension;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -28,6 +30,7 @@ public class MovimientoC extends javax.swing.JFrame {
     Connection conexion;
     float SaldoC;
     JFrame papa;
+    private Transaccion bitacora;
     public MovimientoC() {
         initComponents();
     }
@@ -40,6 +43,7 @@ public class MovimientoC extends javax.swing.JFrame {
         conexion = conex;
         jLabel3.setVisible(false);
         NoCuentaC.setVisible(false);
+        bitacora = new Transaccion(conexion);
         //PanelC.setVisible(false);
         //PanelE.setVisible(false);
         
@@ -66,21 +70,25 @@ public class MovimientoC extends javax.swing.JFrame {
                  //Iniciamos Transaccion
                     pst = conexion.prepareStatement("START TRANSACTION");
                     int a = pst.executeUpdate();
+                    bitacora.iniciar();
 
                     //Insert al movimiento
                     Instruccion = "INSERT INTO movimiento (movimiento.Cuenta_Id,movimiento.Fecha,movimiento.Monto,movimiento.Tipo) VALUES (" +
                                     cuenta.getString(1) + ",NOW()," + monto + "," + "3" + ");";
+                    bitacora.almacenarSentenciaSQL(Instruccion);
                     pst = conexion.prepareStatement(Instruccion);
                     a = pst.executeUpdate();
 
                      //Update a la cuenta
                     Instruccion2 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo + " + monto + " WHERE cuenta.Id = " + cuenta.getString(1) + ";";
+                    bitacora.almacenarSentenciaSQL(Instruccion2);
                     pst = conexion.prepareStatement(Instruccion2);
                     a = pst.executeUpdate();
 
                     //Hacemos commit
                     pst = conexion.prepareStatement("COMMIT");
                     a = pst.executeUpdate();
+                    bitacora.finalizar(Transaccion.COMPROMETIDA);
                     System.out.println("Se logró el commit");
                     JOptionPane.showMessageDialog(null, "Se ha realizado el Movimiento a la cuenta " + cuenta.getString(2));
                     SaldoC = SaldoC + Float.parseFloat(monto);
@@ -89,10 +97,12 @@ public class MovimientoC extends javax.swing.JFrame {
                     try {
                         pst = conexion.prepareStatement("ROLLBACK;");
                         int b = pst.executeUpdate();
+                        bitacora.finalizar(Transaccion.ABORTADA);
                         System.out.println("Se logró el Rollback");
                         JOptionPane.showMessageDialog(null, "Error Inesperado");
                         //conexion.rollback();
                     } catch (SQLException ex1) {
+                        bitacora.finalizar(Transaccion.FALLIDA);
                         Logger.getLogger(MovimientoC.class.getName()).log(Level.SEVERE, null, ex1);
                         System.out.println("No se pudo realizar el Rollback");
                     }
@@ -130,22 +140,26 @@ public class MovimientoC extends javax.swing.JFrame {
                     //Iniciamos Transaccion
                         pst = conexion.prepareStatement("START TRANSACTION");
                         int a = pst.executeUpdate();
+                        bitacora.iniciar();
 
                         //Insert al movimiento
                         Instruccion = "INSERT INTO movimiento (movimiento.Cuenta_Id,movimiento.Fecha,movimiento.Monto,movimiento.Tipo) VALUES (" +
                                 cuenta.getString(1) + ",NOW()," + monto + "," + "2" + ");";
+                        bitacora.almacenarSentenciaSQL(Instruccion);
 
                         pst = conexion.prepareStatement(Instruccion);
                         a = pst.executeUpdate();
 
                         //Update a la cuenta
                         Instruccion2 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo - " + monto + " WHERE cuenta.Id = " + cuenta.getString(1) + ";";
+                        bitacora.almacenarSentenciaSQL(Instruccion2);
                         pst = conexion.prepareStatement(Instruccion2);
                         a = pst.executeUpdate();
 
                         //Hacemos commit
                         pst = conexion.prepareStatement("COMMIT");
                         a = pst.executeUpdate();
+                        bitacora.finalizar(Transaccion.COMPROMETIDA);
                         System.out.println("Se logró el commit");
                         JOptionPane.showMessageDialog(null, "Se ha realizado el Movimiento a la cuenta " + cuenta.getString(2));
                         //SaldoC = SaldoC - Float.parseFloat(monto);
@@ -154,10 +168,12 @@ public class MovimientoC extends javax.swing.JFrame {
                         try {
                             pst = conexion.prepareStatement("ROLLBACK;");
                             int b = pst.executeUpdate();
+                            bitacora.finalizar(Transaccion.ABORTADA);
                             System.out.println("Se logró el Rollback");
                             JOptionPane.showMessageDialog(null, "Error Inesperado");
                             //conexion.rollback();
                         } catch (SQLException ex1) {
+                            bitacora.finalizar(Transaccion.FALLIDA);
                             Logger.getLogger(MovimientoC.class.getName()).log(Level.SEVERE, null, ex1);
                             System.out.println("No se pudo realizar el Rollback");
                         }
@@ -197,32 +213,39 @@ public class MovimientoC extends javax.swing.JFrame {
                     //Iniciamos Transaccion
                         pst = conexion.prepareStatement("START TRANSACTION");
                         int a = pst.executeUpdate();
+                        bitacora.iniciar();
 
                         //Insert al movimiento
                         Instruccion = "INSERT INTO movimiento (movimiento.Cuenta_Id,movimiento.Fecha,movimiento.Monto,movimiento.Tipo) VALUES (" +
                                 cuenta.getString(1) + ",NOW()," + monto + "," + "4" + ");";
+                        bitacora.almacenarSentenciaSQL(Instruccion);
 
                         pst = conexion.prepareStatement(Instruccion);
                         a = pst.executeUpdate();
 
                         //Update a la cuenta
                         Instruccion2 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo - " + monto + " WHERE cuenta.Id = " + cuenta.getString(1) + ";";
+                        bitacora.almacenarSentenciaSQL(Instruccion2);
                         pst = conexion.prepareStatement(Instruccion2);
                         a = pst.executeUpdate();
 
                         //Insert Cheque de la cual se sacó dinero 
                         Statement sentencia = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                        ResultSet idMov = sentencia.executeQuery("SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";" );
+                        String sentenciaSQL = "SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";";
+                        bitacora.almacenarSentenciaSQL(sentenciaSQL);
+                        ResultSet idMov = sentencia.executeQuery(sentenciaSQL);
                         idMov.last();   //Nos movemos al ultimo
                         //idMov.previous();   //Retrocedemos
                         Instruccion3 = "INSERT INTO cheque (cheque.Movimiento_Id,cheque.Numero,cheque.Fecha) VALUES (" +
                                         idMov.getString(1) + ",'" + NoC + "',NOW());" ;
+                        bitacora.almacenarSentenciaSQL(Instruccion3);
                         pst = conexion.prepareStatement(Instruccion3);
                         a = pst.executeUpdate();
 
                         //Hacemos commit
                         pst = conexion.prepareStatement("COMMIT");
                         a = pst.executeUpdate();
+                        bitacora.finalizar(Transaccion.COMPROMETIDA);
                         System.out.println("Se logró el commit");
                         JOptionPane.showMessageDialog(null, "Se ha realizado el Movimiento a la cuenta " + cuenta.getString(2));
                         //SaldoC = SaldoC - Float.parseFloat(monto);
@@ -231,10 +254,12 @@ public class MovimientoC extends javax.swing.JFrame {
                         try {
                             pst = conexion.prepareStatement("ROLLBACK;");
                             int b = pst.executeUpdate();
+                            bitacora.finalizar(Transaccion.ABORTADA);
                             System.out.println("Se logró el Rollback");
                             JOptionPane.showMessageDialog(null, "Error Inesperado");
                             //conexion.rollback();
                         } catch (SQLException ex1) {
+                            bitacora.finalizar(Transaccion.FALLIDA);
                             Logger.getLogger(MovimientoC.class.getName()).log(Level.SEVERE, null, ex1);
                             System.out.println("No se pudo realizar el Rollback");
                         }
@@ -276,39 +301,49 @@ public class MovimientoC extends javax.swing.JFrame {
                  //Iniciamos Transaccion
                         pst = conexion.prepareStatement("START TRANSACTION");
                         int a = pst.executeUpdate();
+                        bitacora.iniciar();
 
                         //Insert al movimiento de retiro de cheque
                         Instruccion = "INSERT INTO movimiento (movimiento.Cuenta_Id,movimiento.Fecha,movimiento.Monto,movimiento.Tipo) VALUES (" +
                                         cuenta.getString(1) + ",NOW()," + monto + "," + "4" + ");";
+                        bitacora.almacenarSentenciaSQL(Instruccion);
                         pst = conexion.prepareStatement(Instruccion);
                         a = pst.executeUpdate();
 
                         //Insert del movimiento de deposito de cheque
                         Statement sentencia = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                        noMov = sentencia.executeQuery("SELECT * FROM cuenta WHERE cuenta.Numero = '" + Cuenta2+ "';" );
+                        String sentenciaSQL = "SELECT * FROM cuenta WHERE cuenta.Numero = '" + Cuenta2+ "';";
+                        bitacora.almacenarSentenciaSQL(sentenciaSQL);
+                        noMov = sentencia.executeQuery(sentenciaSQL);
                         noMov.next();
                         Instruccion1 = "INSERT INTO movimiento (movimiento.Cuenta_Id,movimiento.Fecha,movimiento.Monto,movimiento.Tipo) VALUES (" +
                                         noMov.getString(1) + ",NOW()," + monto + "," + "5" + ");";
+                        bitacora.almacenarSentenciaSQL(Instruccion1);
                         pst = conexion.prepareStatement(Instruccion1);
                         a = pst.executeUpdate();
 
                          //Update a la cuenta de retiro de cheque
                         Instruccion2 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo - " + monto + " WHERE cuenta.Id = " + cuenta.getString(1) + ";";
+                        bitacora.almacenarSentenciaSQL(Instruccion2);
                         pst = conexion.prepareStatement(Instruccion2);
                         a = pst.executeUpdate();
 
                         //Update a la cuenta de deposito de cheque
                        Instruccion3 = "UPDATE cuenta SET cuenta.Saldo = cuenta.Saldo + " + monto + " WHERE cuenta.Id = " + noMov.getString(1) + ";";
+                       bitacora.almacenarSentenciaSQL(Instruccion3);
                         pst = conexion.prepareStatement(Instruccion3);
                         a = pst.executeUpdate();
 
                         //Insert al del cheque Pendiente
                         Statement sentencia2 = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                        ResultSet idMov = sentencia2.executeQuery("SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";" );
+                        sentenciaSQL = "SELECT M.Id FROM cuenta C INNER JOIN movimiento M ON C.Id = M.Cuenta_Id WHERE C.Id = " + cuenta.getString(1) + ";";
+                        bitacora.almacenarSentenciaSQL(sentenciaSQL);
+                        ResultSet idMov = sentencia2.executeQuery(sentenciaSQL);
                         idMov.last();   //Nos movemos al ultimo
                         //idMov.previous();   //Retrocedemos
                         Instruccion4 = "INSERT INTO cheque (cheque.Movimiento_Id,cheque.Numero,cheque.Fecha) VALUES (" +
                                         idMov.getString(1) + ",'" + NoC + "',NOW());" ;
+                        bitacora.almacenarSentenciaSQL(Instruccion4);
                         pst = conexion.prepareStatement(Instruccion4);
                         a = pst.executeUpdate();
 
@@ -316,6 +351,7 @@ public class MovimientoC extends javax.swing.JFrame {
                         //Hacemos commit
                         pst = conexion.prepareStatement("COMMIT");
                         a = pst.executeUpdate();
+                        bitacora.finalizar(Transaccion.COMPROMETIDA);
                         System.out.println("Se logró el commit");
                         JOptionPane.showMessageDialog(null, "Se ha realizado el Movimiento a la cuenta " + cuenta.getString(2));
                         SaldoC = SaldoC - Float.parseFloat(monto);
@@ -324,10 +360,12 @@ public class MovimientoC extends javax.swing.JFrame {
                         try {
                             pst = conexion.prepareStatement("ROLLBACK;");
                             int b = pst.executeUpdate();
+                            bitacora.finalizar(Transaccion.ABORTADA);
                             System.out.println("Se logró el Rollback");
                             JOptionPane.showMessageDialog(null, "Error Inesperado");
                             //conexion.rollback();
                         } catch (SQLException ex1) {
+                            bitacora.finalizar(Transaccion.ABORTADA);
                             Logger.getLogger(MovimientoC.class.getName()).log(Level.SEVERE, null, ex1);
                             System.out.println("No se pudo realizar el Rollback");
                         }
@@ -517,11 +555,10 @@ public class MovimientoC extends javax.swing.JFrame {
                 .addGap(18, 18, 18)
                 .addGroup(PanelELayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(jButton4, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
-                    .addGroup(PanelELayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(jButton3, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
-                        .addComponent(NoCuentaE)
-                        .addComponent(MontoE)
-                        .addComponent(TipoE, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                    .addComponent(jButton3, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
+                    .addComponent(NoCuentaE)
+                    .addComponent(MontoE)
+                    .addComponent(TipoE, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         PanelELayout.setVerticalGroup(
@@ -546,7 +583,7 @@ public class MovimientoC extends javax.swing.JFrame {
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
-        ComboTipo.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Movimiento en Efectio", "Movimiento con Cheque" }));
+        ComboTipo.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Movimiento en Efectivo", "Movimiento con Cheque" }));
         ComboTipo.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 ComboTipoActionPerformed(evt);
