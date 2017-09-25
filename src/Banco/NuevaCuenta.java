@@ -36,6 +36,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
     }
     public NuevaCuenta(Connection conex,JFrame pad) {
         initComponents();
+        this.setLocationRelativeTo(null);
         conexion = conex;
         modelo = (DefaultTableModel) Clientes.getModel();
         calcularNoCuenta();
@@ -524,7 +525,7 @@ public class NuevaCuenta extends javax.swing.JFrame {
                 //Luego los cuentacliente
                 String ac = "", bc = "";
                 Statement sentencia2 = conexion.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-                ResultSet cuent = sentencia2.executeQuery("SELECT cuenta.Id FROM cuenta WHERE cuenta.Numero = '" + NoCuenta.getText() + "';" );
+                ResultSet cuent = sentencia2.executeQuery("SELECT cuenta.Id FROM cuenta WHERE cuenta.Numero = '" + NumeroC + "';" );
                 ResultSet client = null;
                 if(cuent.next()){
                     System.out.println("Si hay un next en cuenta");
