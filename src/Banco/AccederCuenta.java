@@ -183,7 +183,7 @@ public class AccederCuenta extends javax.swing.JFrame {
                 if(Cuenta1.next()){
                     //this.setEnabled(false);
                     new Cuenta(conexion,Cuenta1).setVisible(true);
-                    
+                    this.dispose();
                 }
                 else{
                     JOptionPane.showMessageDialog(null, "Numero de cuenta incorrecto");
@@ -196,7 +196,8 @@ public class AccederCuenta extends javax.swing.JFrame {
 
     private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
         // TODO add your handling code here:
-        System.exit(0);
+        new Principal().setVisible(true);
+        this.dispose();
     }//GEN-LAST:event_jButton3ActionPerformed
 
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
